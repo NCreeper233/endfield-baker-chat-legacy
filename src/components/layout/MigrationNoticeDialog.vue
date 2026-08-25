@@ -37,7 +37,7 @@ function onDismissForever() {
       <div class="mn__panel">
         <h2 class="mn__title">公告</h2>
         <p class="mn__text">
-          请在使用本网站的用户务必加入QQ群：<strong class="mn__qq">1105542731</strong> 以获取相关通知公告！<br>重要的事情说三遍：请一定加入QQ群！<br>群号：1105542731<br>群号：1105542731<br>群号：1105542731
+          请在使用本网站的用户务必加入QQ群：<strong class="mn__qq">1105542731</strong> 以获取相关的通知公告！<br>重要的事情说三遍：请一定加入QQ群！<br>群号：1105542731<br>群号：1105542731<br>群号：1105542731
         </p>
         <div class="mn__actions">
           <button class="mn__btn mn__btn--primary" type="button" @click="onConfirm">确定</button>
