@@ -282,14 +282,8 @@ function onChatNew() {
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
       </div>
       <div class="desktop-deco__col">
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
@@ -313,14 +307,8 @@ function onChatNew() {
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
       </div>
       <div class="desktop-deco__col">
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
         <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
