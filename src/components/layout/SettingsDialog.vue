@@ -5,9 +5,10 @@
 // AI API 配置 + 提示词编辑,全部持久化到 localStorage(settings store)
 // 打开/关闭状态由父组件 App 持有
 // =============================================================================
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useSettingsStore, DEFAULT_WORLD_SETTING } from '../../stores/settings'
 import { testApiConnection } from '../../utils/llm'
+import type { TestLog } from '../../utils/llm'
 import { testBackendConnection } from '../../utils/backend'
 import { useChatStore } from '../../stores/chat'
 import { CHARACTER_PROMPTS } from '../../constants/prompts'
@@ -121,22 +122,103 @@ function saveApiConfig() {
 /** 连接测试状态 */
 const testState = ref<'idle' | 'testing' | 'success' | 'fail'>('idle')
 const testMessage = ref('')
+/** 最近一次测试的详细日志 */
+const testLog = ref<TestLog | null>(null)
 
 /** 测试 API 连接 */
 async function onTestConnection() {
   testState.value = 'testing'
   testMessage.value = ''
+  testLog.value = null
   try {
     const result = isBackendMode.value
       ? await testBackendConnection({ ...apiDraft.value })
       : await testApiConnection({ ...apiDraft.value })
     testState.value = result.ok ? 'success' : 'fail'
     testMessage.value = result.message
+    testLog.value = result.log
   } catch {
     testState.value = 'fail'
     testMessage.value = '连接失败: 未知错误'
   }
 }
+
+/** 是否应忽略该键盘事件(输入框 / textarea / contenteditable 内不触发) */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable
+}
+
+/** 格式化测试日志为可读文本 */
+function formatTestLog(log: TestLog): string {
+  const lines: string[] = []
+  lines.push('=== API 连接测试日志 ===')
+  lines.push(`时间: ${log.timestamp}`)
+  lines.push(`API 模式: ${log.apiMode}`)
+  lines.push('')
+  lines.push('--- 请求 ---')
+  lines.push(`方法: ${log.requestMethod}`)
+  lines.push(`URL: ${log.url || '(空)'}`)
+  lines.push('Headers:')
+  for (const [k, v] of Object.entries(log.requestHeaders)) {
+    lines.push(`  ${k}: ${v}`)
+  }
+  lines.push('Body:')
+  lines.push(JSON.stringify(log.requestBody, null, 2))
+  lines.push('')
+  lines.push('--- 响应 ---')
+  if (log.responseStatus !== undefined) {
+    lines.push(`Status: ${log.responseStatus} ${log.responseStatusText ?? ''}`)
+  }
+  if (log.responseHeaders && Object.keys(log.responseHeaders).length > 0) {
+    lines.push('Headers:')
+    for (const [k, v] of Object.entries(log.responseHeaders)) {
+      lines.push(`  ${k}: ${v}`)
+    }
+  }
+  if (log.responseBody) {
+    lines.push(`Body: ${log.responseBody}`)
+  }
+  lines.push('')
+  lines.push('--- 错误 ---')
+  lines.push(log.error ?? '(无)')
+  return lines.join('\n')
+}
+
+/** 下载最近一次测试日志 */
+function downloadTestLog() {
+  if (!testLog.value) return
+  const text = formatTestLog(testLog.value)
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const ts = testLog.value.timestamp.replace(/[:.]/g, '-').slice(0, 19)
+  a.href = url
+  a.download = `connection-test-${ts}.log`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+/** F 键下载测试日志 */
+function onTestLogKeydown(event: KeyboardEvent) {
+  if (event.key.toLowerCase() !== 'f') return
+  if (event.ctrlKey || event.metaKey || event.altKey) return
+  if (isEditableTarget(event.target)) return
+  if (!props.open) return
+  if (!testLog.value) return
+  event.preventDefault()
+  downloadTestLog()
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onTestLogKeydown)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onTestLogKeydown)
+})
 
 /** 保存世界观设定 */
 function saveSystemPrompt() {

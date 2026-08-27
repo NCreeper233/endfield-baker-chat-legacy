@@ -11,6 +11,7 @@
 // =============================================================================
 
 import type { ApiConfig } from '../stores/settings'
+import type { TestLog } from './llm'
 
 /** 后端请求的历史条目(OpenAI 风格 role/content) */
 export interface BackendHistoryEntry {
@@ -132,27 +133,69 @@ export async function fetchBackendReply(
  */
 export async function testBackendConnection(
   config: ApiConfig,
-): Promise<{ ok: boolean; message: string }> {
+): Promise<{ ok: boolean; message: string; log: TestLog }> {
   if (!config.backendUrl) {
-    return { ok: false, message: '请先填写后端 URL' }
+    const log: TestLog = {
+      timestamp: new Date().toISOString(),
+      apiMode: 'backend',
+      requestMethod: 'POST',
+      url: '',
+      requestHeaders: {},
+      requestBody: null,
+      error: '请先填写后端 URL',
+    }
+    return { ok: false, message: '请先填写后端 URL', log }
+  }
+
+  const requestBody = {
+    message: '连接测试',
+    history: [],
+    character: '',
+  } satisfies BackendRequest
+
+  const baseLog: Omit<TestLog, 'responseStatus' | 'responseStatusText' | 'responseHeaders' | 'responseBody' | 'error'> = {
+    timestamp: new Date().toISOString(),
+    apiMode: 'backend',
+    requestMethod: 'POST',
+    url: config.backendUrl,
+    requestHeaders: { 'Content-Type': 'application/json' },
+    requestBody,
+  }
+
+  const RESPONSE_HEADER_WHITELIST = [
+    'content-type', 'server', 'date', 'www-authenticate',
+    'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset',
+    'access-control-allow-origin', 'access-control-allow-methods',
+    'access-control-allow-headers', 'access-control-expose-headers',
+    'cf-ray', 'cf-cache-status',
+  ]
+
+  function pickResponseHeaders(res: Response): Record<string, string> {
+    const out: Record<string, string> = {}
+    for (const key of RESPONSE_HEADER_WHITELIST) {
+      const val = res.headers.get(key)
+      if (val !== null) out[key] = val
+    }
+    return out
   }
 
   try {
     const response = await fetch(config.backendUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: '连接测试',
-        history: [],
-        character: '',
-      } satisfies BackendRequest),
+      body: JSON.stringify(requestBody),
     })
     if (!response.ok) {
       const errText = await response.text().catch(() => response.statusText)
-      return { ok: false, message: `连接失败 (${response.status}): ${errText}` }
+      return {
+        ok: false,
+        message: `连接失败 (${response.status}): ${errText}`,
+        log: { ...baseLog, responseStatus: response.status, responseStatusText: response.statusText, responseHeaders: pickResponseHeaders(response), responseBody: errText },
+      }
     }
-    return { ok: true, message: '连接成功' }
+    return { ok: true, message: '连接成功', log: { ...baseLog, responseStatus: response.status, responseStatusText: response.statusText, responseHeaders: pickResponseHeaders(response) } }
   } catch (err) {
-    return { ok: false, message: `连接失败: ${err instanceof Error ? err.message : String(err)}` }
+    const errMsg = err instanceof Error ? err.message : String(err)
+    return { ok: false, message: `连接失败: ${errMsg}`, log: { ...baseLog, error: errMsg } }
   }
 }

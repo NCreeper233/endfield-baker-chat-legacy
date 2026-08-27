@@ -36,6 +36,32 @@ type OnDone = (fullText: string) => void
 /** 错误回调 */
 type OnError = (error: Error) => void
 
+/** 连接测试详细日志 */
+export interface TestLog {
+  /** 测试时间(ISO) */
+  timestamp: string
+  /** API 模式 */
+  apiMode: string
+  /** 请求方法 */
+  requestMethod: string
+  /** 请求 URL */
+  url: string
+  /** 请求头(隐藏敏感信息) */
+  requestHeaders: Record<string, string>
+  /** 请求体 */
+  requestBody: unknown
+  /** 响应状态码 */
+  responseStatus?: number
+  /** 响应状态文本 */
+  responseStatusText?: string
+  /** 响应头(仅安全字段) */
+  responseHeaders?: Record<string, string>
+  /** 响应体(错误时读取) */
+  responseBody?: string
+  /** 网络异常等错误信息 */
+  error?: string
+}
+
 /** 流式聊天请求参数 */
 interface StreamChatParams {
   /** API 配置 */
@@ -239,15 +265,24 @@ export function buildMessages(
  * 使用 AbortController 在收到响应头后立即中止,不消耗额外 token。
  *
  * @param config API 配置(shared 或 custom 模式)
- * @returns { ok, message } 测试结果
+ * @returns { ok, message, log } 测试结果含详细日志
  */
 export async function testApiConnection(
   config: ApiConfig,
-): Promise<{ ok: boolean; message: string }> {
+): Promise<{ ok: boolean; message: string; log: TestLog }> {
   const isShared = config.apiMode === 'shared'
 
   if (!isShared && (!config.baseUrl || !config.apiKey || !config.model)) {
-    return { ok: false, message: '请先填写 Base URL、API Key 和模型名' }
+    const log: TestLog = {
+      timestamp: new Date().toISOString(),
+      apiMode: config.apiMode,
+      requestMethod: 'POST',
+      url: '',
+      requestHeaders: {},
+      requestBody: null,
+      error: '请先填写 Base URL、API Key 和模型名',
+    }
+    return { ok: false, message: '请先填写 Base URL、API Key 和模型名', log }
   }
 
   const url = isShared
@@ -263,19 +298,56 @@ export async function testApiConnection(
 
   const model = isShared ? SHARED_API_MODEL : config.model
 
+  const requestBody = {
+    model,
+    messages: [{ role: 'user', content: 'Hi' }],
+    max_tokens: 5,
+    temperature: 0.8,
+    stream: true,
+  }
+
+  // 构建隐藏敏感信息的请求头副本
+  const safeHeaders = { ...headers }
+  if (safeHeaders['Authorization']) {
+    safeHeaders['Authorization'] = safeHeaders['Authorization'].replace(
+      /^(Bearer\s+).+$/,
+      '$1sk-***（已隐藏）',
+    )
+  }
+
+  const baseLog: Omit<TestLog, 'responseStatus' | 'responseStatusText' | 'responseHeaders' | 'responseBody' | 'error'> = {
+    timestamp: new Date().toISOString(),
+    apiMode: config.apiMode,
+    requestMethod: 'POST',
+    url,
+    requestHeaders: safeHeaders,
+    requestBody,
+  }
+
+  const RESPONSE_HEADER_WHITELIST = [
+    'content-type', 'server', 'date', 'www-authenticate',
+    'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset',
+    'access-control-allow-origin', 'access-control-allow-methods',
+    'access-control-allow-headers', 'access-control-expose-headers',
+    'cf-ray', 'cf-cache-status',
+  ]
+
+  function pickResponseHeaders(res: Response): Record<string, string> {
+    const out: Record<string, string> = {}
+    for (const key of RESPONSE_HEADER_WHITELIST) {
+      const val = res.headers.get(key)
+      if (val !== null) out[key] = val
+    }
+    return out
+  }
+
   const controller = new AbortController()
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: 'Hi' }],
-        max_tokens: 5,
-        temperature: 0.8,
-        stream: true,
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     })
 
@@ -283,15 +355,20 @@ export async function testApiConnection(
     controller.abort()
 
     if (response.ok) {
-      return { ok: true, message: '连接成功' }
+      return { ok: true, message: '连接成功', log: { ...baseLog, responseStatus: response.status, responseStatusText: response.statusText, responseHeaders: pickResponseHeaders(response) } }
     }
     const errText = await response.text().catch(() => response.statusText)
-    return { ok: false, message: `连接失败 (${response.status}): ${errText}` }
+    return {
+      ok: false,
+      message: `连接失败 (${response.status}): ${errText}`,
+      log: { ...baseLog, responseStatus: response.status, responseStatusText: response.statusText, responseHeaders: pickResponseHeaders(response), responseBody: errText },
+    }
   } catch (err) {
     // AbortError 是我们主动中止,说明响应头已收到 = 连接成功
     if (err instanceof DOMException && err.name === 'AbortError') {
-      return { ok: true, message: '连接成功' }
+      return { ok: true, message: '连接成功', log: { ...baseLog, responseStatus: 0, responseStatusText: 'AbortError (主动中止=连接成功)' } }
     }
-    return { ok: false, message: `连接失败: ${err instanceof Error ? err.message : String(err)}` }
+    const errMsg = err instanceof Error ? err.message : String(err)
+    return { ok: false, message: `连接失败: ${errMsg}`, log: { ...baseLog, error: errMsg } }
   }
 }
