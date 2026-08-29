@@ -19,7 +19,7 @@ import { useSettingsStore, DEFAULT_WORLD_SETTING } from '../../stores/settings'
 import { MATERIALS } from '../../constants/materials'
 import {
   downloadProject,
-  openExportLink,
+  copyExportLink,
   importFromZip,
   EXPORT_FILE_EXT,
   type ProjectPayload,
@@ -122,7 +122,7 @@ async function onLink() {
   if (isLinking.value) return
   isLinking.value = true
   try {
-    await openExportLink(
+    await copyExportLink(
       cards.value,
       chatStore.myGender,
       chatStore.stripVariantIndex,
@@ -130,12 +130,16 @@ async function onLink() {
       settingsStore.worldSetting,
       DEFAULT_WORLD_SETTING,
     )
+    linkSuccess.value = true
+    setTimeout(() => { linkSuccess.value = false }, 2000)
   } catch (err) {
     importError.value = err instanceof Error ? err.message : '生成直链失败'
   } finally {
     isLinking.value = false
   }
 }
+
+const linkSuccess = ref(false)
 
 function onRequestClear() {
   confirmKind.value = 'clear'
@@ -248,7 +252,7 @@ function onCancelConfirm() {
               {{ isExporting ? '导出中…' : '导出数据' }}
             </button>
             <button class="dm__btn" type="button" :disabled="isLinking" @click="onLink">
-              {{ isLinking ? '生成中…' : '生成直链' }}
+              {{ linkSuccess ? '已复制' : isLinking ? '生成中…' : '生成直链' }}
             </button>
             <button class="dm__btn" type="button" @click="onPickFile">导入数据</button>
           </div>

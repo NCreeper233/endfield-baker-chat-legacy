@@ -336,10 +336,10 @@ export async function downloadProject(
 }
 
 /**
- * 生成导出 ZIP 的 blob 直链并在新标签页打开(触发下载)。
- * 链接仅当前浏览器会话有效,关闭页面后失效。
+ * 生成导出 ZIP 的 blob 直链,复制到剪贴板,同时触发下载。
+ * blob 链接仅当前浏览器会话有效,换浏览器/关闭页面后失效。
  */
-export async function openExportLink(
+export async function copyExportLink(
   cards: Card[],
   myGender: 'male' | 'female',
   stripVariantIndex: number,
@@ -349,7 +349,18 @@ export async function openExportLink(
 ): Promise<void> {
   const blob = await exportToZip(cards, myGender, stripVariantIndex, promptOverrides, worldSetting, defaultWorldSetting)
   const url = URL.createObjectURL(blob)
-  window.open(url, '_blank')
+
+  // 复制到剪贴板
+  await navigator.clipboard.writeText(url)
+
+  // 同时触发下载
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `BAKER-${timestamp()}${EXPORT_FILE_EXT}`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
