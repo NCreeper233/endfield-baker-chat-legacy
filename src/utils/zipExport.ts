@@ -335,6 +335,24 @@ export async function downloadProject(
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
+/**
+ * 生成导出 ZIP 的 blob 直链并在新标签页打开(触发下载)。
+ * 链接仅当前浏览器会话有效,关闭页面后失效。
+ */
+export async function openExportLink(
+  cards: Card[],
+  myGender: 'male' | 'female',
+  stripVariantIndex: number,
+  promptOverrides: Record<string, string>,
+  worldSetting: string,
+  defaultWorldSetting: string,
+): Promise<void> {
+  const blob = await exportToZip(cards, myGender, stripVariantIndex, promptOverrides, worldSetting, defaultWorldSetting)
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank')
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
 // ---- ZIP 导入 ---------------------------------------------------------------
 
 /**
