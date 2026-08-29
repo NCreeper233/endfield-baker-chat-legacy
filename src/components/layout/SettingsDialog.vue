@@ -65,10 +65,8 @@ const selectedCharacter = ref<string>('')
 /** 当前角色的提示词草稿 */
 const characterPromptDraft = ref('')
 
-/** 所有可编辑提示词的角色名列表(内置角色,排除隐藏角色) */
-const characterNames = computed(() =>
-  Object.keys(CHARACTER_PROMPTS).filter((name) => name !== '飞机大战直升机'),
-)
+/** 所有可编辑提示词的角色名列表(内置角色) */
+const characterNames = computed(() => Object.keys(CHARACTER_PROMPTS))
 
 /** 当前角色是否为内置角色(有默认提示词可恢复) */
 const isBuiltinCharacter = computed(() =>
