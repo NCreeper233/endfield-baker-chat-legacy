@@ -56,8 +56,6 @@ import editBtnExport from '../assets/materials/icon_contingency_contract_apply_s
 import editBtnShare from '../assets/materials/icon_friend_share.webp'
 import loginBtnSetting from '../assets/materials/login_btn_setting.webp'
 
-// 桌面端右下角装饰图
-import desktopDeco from '../assets/materials/64edbb654b9a463891aadee7ad62d9d9.webp'
 
 /**
  * 内置素材 URL 表。
@@ -128,6 +126,4 @@ export const MATERIALS = {
   editBtnShare,
   // 设置按钮图标
   loginBtnSetting,
-  // 桌面端右下角装饰图
-  desktopDeco,
 } as const

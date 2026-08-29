@@ -229,9 +229,6 @@ onBeforeUnmount(() => {
   if (healTimer !== null) clearTimeout(healTimer)
 })
 
-/** 右下角装饰图弹窗 */
-const decoPopupOpen = ref(false)
-const DECO_BINARY_TEXT = `01010100 01101000 01100001 01101110 01101011 01110011 00100000 01110100 01101111 00100000 01110100 01101000 01100101 00100000 01100011 01111001 01100010 01100101 01110010 00100000 01100100 01100101 01101001 01110100 01101001 01100101 01110011 00100000 01100110 01101111 01110010 00100000 01101100 01100101 01101110 01100100 01101001 01101110 01100111 00100000 01100001 00100000 01101000 01100001 01101110 01100100 00101110 00100000 01001111 01101110 00100000 01100010 01100101 01101000 01100001 01101100 01100110 00100000 01101111 01100110 00100000 01110100 01101000 01100101 00100000 01100111 01110010 01101111 01110101 01110000 00100000 01101101 01100101 01101101 01100010 01100101 01110010 01110011 00101100 00100000 01110111 01100101 00100111 01110010 01100101 00100000 01100111 01110010 01100001 01110100 01100101 01100110 01110101 01101100 00101110 00100000 01010000 01101100 01100101 01100001 01110011 01100101 00100000 01100010 01101100 01100101 01110011 01110011 00100000 01110100 01101000 01100101 00100000 01110111 01100101 01100010 01110011 01101001 01110100 01100101 00100000 01110011 01101111 00100000 01101001 01110100 00100000 01100011 01100001 01101110 00100000 01110010 01110101 01101110 00100000 01101110 01101111 01110010 01101101 01100001 01101100 01101100 01111001 00100000 01100110 01101111 01110010 00100000 01110100 01110111 01101111 00100000 01100100 01100001 01111001 01110011 00100001`
 
 /** 删除确认弹窗是否展开(删除按钮 toggle) */
 const confirmOpen = ref(false)
@@ -270,56 +267,7 @@ function onChatNew() {
       <CharacterCardList />
       <ChatArea @open-settings="settingsOpen = true" />
     </DesignCanvas>
-    <!-- 左下角装饰图(两列) -->
-    <div v-show="showToolbar" class="desktop-deco desktop-deco--left" @click="decoPopupOpen = true">
-      <div class="desktop-deco__col">
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-      </div>
-      <div class="desktop-deco__col">
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-      </div>
-    </div>
-    <!-- 右下角装饰图(两列) -->
-    <div v-show="showToolbar" class="desktop-deco" @click="decoPopupOpen = true">
-      <div class="desktop-deco__col">
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-      </div>
-      <div class="desktop-deco__col">
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-        <img :src="MATERIALS.desktopDeco" class="desktop-deco__item" alt="" />
-      </div>
-    </div>
+
   </template>
 
   <!-- ==================== 移动端(≤768px):列表 ↔ 聊天 双视图 ==================== -->
@@ -461,15 +409,7 @@ function onChatNew() {
   />
   <!-- 迁移公告弹窗:进入网站时弹出(自行管理显隐与"不再显示"持久化) -->
   <MigrationNoticeDialog />
-  <!-- 右下角装饰图弹窗 -->
-  <Transition name="ns">
-    <div v-if="decoPopupOpen" class="ns deco-popup" @click.self="decoPopupOpen = false">
-      <div class="ns__panel deco-popup__panel">
-        <p class="deco-popup__text">{{ DECO_BINARY_TEXT }}</p>
-        <button class="ns__btn" type="button" @click="decoPopupOpen = false">关闭</button>
-      </div>
-    </div>
-  </Transition>
+
 </template>
 
 <style scoped lang="scss">
@@ -539,54 +479,7 @@ function onChatNew() {
   }
 }
 
-// ---- 桌面端右下角装饰图 ----------------------------------------------------
-.desktop-deco {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
-  cursor: pointer;
-  display: flex;
-  flex-direction: row;
-  gap: 4px;
-  padding: 8px 6px;
 
-  &--left {
-    right: auto;
-    left: 0;
-  }
-
-  &__col {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  &__item {
-    display: block;
-    width: 55px;
-    height: auto;
-  }
-}
-
-// ---- 右下角装饰图弹窗 ------------------------------------------------------
-.deco-popup {
-  &__panel {
-    max-width: 500px;
-    width: 90vw;
-  }
-
-  &__text {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 11px;
-    line-height: 1.6;
-    color: $color-text-primary;
-    word-break: break-all;
-    white-space: pre-wrap;
-    text-align: center;
-    margin: 0 0 16px;
-  }
-}
 
 // ---- 移动端列表视图 --------------------------------------------------------
 // 对话列表(526×897 设计稿)等比缩放铺满手机视口;列表自身可滚动。
