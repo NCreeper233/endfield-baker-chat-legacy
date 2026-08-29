@@ -14,6 +14,8 @@ import { useChatStore } from '../../stores/chat'
 import { CHARACTER_PROMPTS } from '../../constants/prompts'
 import DataManagerDialog from './DataManagerDialog.vue'
 import { jsonToZip, exportToJsonString, EXPORT_FILE_EXT } from '../../utils/zipExport'
+import { flushPendingWrites } from '../../composables/useChatPersistence'
+import { sanitizeCards } from '../../utils/zipExport'
 
 const props = defineProps<{
   /** 是否展开 */
@@ -397,6 +399,56 @@ async function onConvertToZip() {
     isConverting.value = false
   }
 }
+
+// ---- 直接导入:JSON → 直接写入 store ------------------------------------------
+const isDirectImporting = ref(false)
+const directImportSuccess = ref(false)
+const directImportError = ref('')
+const showImportConfirm = ref(false)
+
+function onDirectImport() {
+  showImportConfirm.value = true
+}
+
+function cancelDirectImport() {
+  showImportConfirm.value = false
+}
+
+async function confirmDirectImport() {
+  showImportConfirm.value = false
+  const combined = transferParts.value.map(s => s.trim()).filter(Boolean).join('')
+  if (!combined) return
+  isDirectImporting.value = true
+  directImportError.value = ''
+  try {
+    const raw = JSON.parse(combined)
+    if (typeof raw.version !== 'number') throw new Error('版本号无效')
+    if (!Array.isArray(raw.cards)) throw new Error('缺少 cards 数据')
+
+    const myGender: 'male' | 'female' = raw.myGender === 'female' ? 'female' : 'male'
+    const stripVariantIndex = typeof raw.stripVariantIndex === 'number'
+      ? ((raw.stripVariantIndex % 3) + 3) % 3
+      : 0
+
+    chatStore.replaceAllCards(sanitizeCards(raw.cards))
+    chatStore.setMyGender(myGender)
+    chatStore.setStripVariant(stripVariantIndex)
+    if (raw.promptOverrides && typeof raw.promptOverrides === 'object') {
+      settingsStore.promptOverrides = { ...raw.promptOverrides }
+    }
+    if (typeof raw.worldSetting === 'string' && raw.worldSetting) {
+      settingsStore.worldSetting = raw.worldSetting
+    }
+    flushPendingWrites()
+
+    directImportSuccess.value = true
+    setTimeout(() => { directImportSuccess.value = false }, 2000)
+  } catch (err) {
+    directImportError.value = err instanceof Error ? err.message : '导入失败'
+  } finally {
+    isDirectImporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -659,10 +711,10 @@ async function onConvertToZip() {
             </div>
           </div>
 
-          <!-- 数据转移:粘贴 JSON → 转换为标准 ZIP 下载 -->
+          <!-- 数据转移:粘贴 JSON → 转换为标准 ZIP 下载 或 直接导入 -->
           <div v-if="activeTab === 'transfer'" class="sd__section">
             <p class="sd__desc">
-              将「复制JSON」得到的文本粘贴到下方(分割数据则分块粘贴),转换为标准 .zip 工程文件下载。
+              将「复制JSON」得到的文本粘贴到下方(分割数据则分块粘贴),可直接导入或转换为 ZIP 下载。
             </p>
             <div class="sd__transfer-actions">
               <button class="sd__btn" type="button" @click="onPasteJson">从剪贴板粘贴</button>
@@ -670,12 +722,30 @@ async function onConvertToZip() {
               <button
                 class="sd__btn sd__btn--primary"
                 type="button"
+                :disabled="isDirectImporting"
+                @click="onDirectImport"
+              >
+                {{ directImportSuccess ? '已导入' : isDirectImporting ? '导入中…' : '直接导入' }}
+              </button>
+              <button
+                class="sd__btn"
+                type="button"
                 :disabled="isConverting"
                 @click="onConvertToZip"
               >
                 {{ convertSuccess ? '已下载' : isConverting ? '转换中…' : '转换并下载 ZIP' }}
               </button>
             </div>
+
+            <!-- 直接导入确认弹窗 -->
+            <div v-if="showImportConfirm" class="sd__import-confirm">
+              <p class="sd__import-confirm-text">将覆盖当前全部数据,确定导入？</p>
+              <div class="sd__import-confirm-actions">
+                <button class="sd__btn sd__btn--primary" type="button" @click="confirmDirectImport">确认导入</button>
+                <button class="sd__btn" type="button" @click="cancelDirectImport">取消</button>
+              </div>
+            </div>
+
             <div v-for="(_, idx) in transferParts" :key="idx" class="sd__transfer-part">
               <div class="sd__transfer-part-header">
                 <span class="sd__transfer-part-label">{{ transferParts.length > 1 ? `第${idx + 1}部分` : '数据' }}</span>
@@ -694,6 +764,7 @@ async function onConvertToZip() {
               ></textarea>
             </div>
             <p v-if="convertError" class="sd__error">{{ convertError }}</p>
+            <p v-if="directImportError" class="sd__error">{{ directImportError }}</p>
           </div>
 
           <!-- 背景:上传自定义背景 + 恢复默认 -->
@@ -1114,6 +1185,26 @@ async function onConvertToZip() {
     font-family: $font-harmony;
     font-size: 14px;
     color: #ff8f8f;
+  }
+
+  &__import-confirm {
+    margin: 10px 0;
+    padding: 12px;
+    border: 1px solid rgba(255, 180, 80, 0.4);
+    border-radius: 8px;
+    background: rgba(255, 180, 80, 0.08);
+  }
+
+  &__import-confirm-text {
+    margin: 0 0 10px;
+    font-family: $font-harmony;
+    font-size: 14px;
+    color: #ffb050;
+  }
+
+  &__import-confirm-actions {
+    display: flex;
+    gap: 8px;
   }
 
   &__hint {
