@@ -78,7 +78,9 @@ export function useAiChat() {
         )
       } else {
         // 原有模式:系统提示词 + 角色提示词 + 历史消息,SSE 流式调用
-        const systemPrompt = settingsStore.getFullSystemPrompt()
+        // 飞机大战直升机不受系统/世界观提示词影响
+        const skipSystem = characterName === '飞机大战直升机'
+        const systemPrompt = skipSystem ? '' : settingsStore.getFullSystemPrompt()
         const characterPrompt = settingsStore.getCharacterPrompt(characterName)
         const history = chatStore.getChatHistory()
 

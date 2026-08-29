@@ -115,6 +115,7 @@ export const CHARACTERS: Character[] = [
   { name: '安塔尔',     avatar: resolveLocalAvatar('安塔尔')!,     gender: 'male' },
   { name: '阿达希尔',   avatar: resolveLocalAvatar('阿达希尔')!,   gender: 'male' },
   { name: '聂菲斯',     avatar: resolveLocalAvatar('聂菲斯')!,     gender: 'female' },
+  { name: '飞机大战直升机', avatar: resolveLocalAvatar('飞机大战直升机')!, gender: 'male' },
 ]
 
 // DEV 模式下校验所有头像已正确加载。resolveLocalAvatar 返回 undefined
