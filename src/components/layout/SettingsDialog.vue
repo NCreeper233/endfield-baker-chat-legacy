@@ -332,7 +332,7 @@ async function onCopyFull() {
   }
 }
 
-const CHUNK_SIZE = 1_000_000
+const CHUNK_SIZE = 500_000
 const jsonChunks = ref<string[]>([])
 const chunkCopied = ref<number[]>([])
 
