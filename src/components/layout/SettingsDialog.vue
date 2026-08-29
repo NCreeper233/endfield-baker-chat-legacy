@@ -13,7 +13,7 @@ import { testBackendConnection } from '../../utils/backend'
 import { useChatStore } from '../../stores/chat'
 import { CHARACTER_PROMPTS } from '../../constants/prompts'
 import DataManagerDialog from './DataManagerDialog.vue'
-import { jsonToZip, EXPORT_FILE_EXT } from '../../utils/zipExport'
+import { jsonToZip, exportToJsonString, EXPORT_FILE_EXT } from '../../utils/zipExport'
 
 const props = defineProps<{
   /** 是否展开 */
@@ -31,8 +31,8 @@ const emit = defineEmits<{
 const settingsStore = useSettingsStore()
 const chatStore = useChatStore()
 
-/** 当前标签页:api / system / character / data / transfer / bg / disclaimer / about */
-const activeTab = ref<'api' | 'system' | 'character' | 'data' | 'transfer' | 'bg' | 'disclaimer' | 'about'>('api')
+/** 当前标签页:api / system / character / data / copyJson / transfer / bg / disclaimer / about */
+const activeTab = ref<'api' | 'system' | 'character' | 'data' | 'copyJson' | 'transfer' | 'bg' | 'disclaimer' | 'about'>('api')
 
 // ---- API 配置本地缓存(打开时同步,保存时写入 store) -------------------------
 const apiDraft = ref({
@@ -285,17 +285,102 @@ function onBgReset() {
 }
 
 // ---- 数据转移:JSON → ZIP 转换 -----------------------------------------------
-const transferJson = ref('')
+
+async function onPasteJson() {
+  try {
+    const text = await navigator.clipboard.readText()
+    const lastIdx = transferParts.value.length - 1
+    if (transferParts.value[lastIdx].trim() === '') {
+      transferParts.value[lastIdx] = text
+    } else {
+      transferParts.value.push(text)
+    }
+    convertError.value = ''
+  } catch {
+    convertError.value = '无法读取剪贴板,请手动粘贴'
+  }
+}
+
+// ---- 复制JSON:完整复制 + 分割复制 -------------------------------------------
+const fullJsonText = computed(() => {
+  try {
+    return exportToJsonString(
+      chatStore.cards,
+      chatStore.myGender,
+      chatStore.stripVariantIndex,
+      settingsStore.promptOverrides,
+      settingsStore.worldSetting,
+      DEFAULT_WORLD_SETTING,
+    )
+  } catch {
+    return ''
+  }
+})
+
+const fullCopySuccess = ref(false)
+
+async function onCopyFull() {
+  if (!fullJsonText.value) return
+  try {
+    await navigator.clipboard.writeText(fullJsonText.value)
+    fullCopySuccess.value = true
+    setTimeout(() => { fullCopySuccess.value = false }, 2000)
+  } catch {
+    // fallback: 选中 textarea
+  }
+}
+
+const CHUNK_SIZE = 80_000
+const jsonChunks = ref<string[]>([])
+const chunkCopied = ref<number[]>([])
+
+function splitJson() {
+  const text = fullJsonText.value
+  if (!text) return
+  const chunks: string[] = []
+  for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+    chunks.push(text.slice(i, i + CHUNK_SIZE))
+  }
+  jsonChunks.value = chunks
+  chunkCopied.value = []
+}
+
+async function onCopyChunk(idx: number) {
+  const chunk = jsonChunks.value[idx]
+  if (!chunk) return
+  try {
+    await navigator.clipboard.writeText(chunk)
+    if (!chunkCopied.value.includes(idx)) {
+      chunkCopied.value.push(idx)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// ---- 数据转移:多框合并转换 ---------------------------------------------------
+const transferParts = ref<string[]>([''])
 const isConverting = ref(false)
 const convertSuccess = ref(false)
 const convertError = ref('')
 
+function addTransferPart() {
+  transferParts.value.push('')
+}
+
+function removeTransferPart(idx: number) {
+  if (transferParts.value.length <= 1) return
+  transferParts.value.splice(idx, 1)
+}
+
 async function onConvertToZip() {
-  if (isConverting.value || !transferJson.value.trim()) return
+  if (isConverting.value) return
+  const combined = transferParts.value.map(s => s.trim()).filter(Boolean).join('')
+  if (!combined) return
   isConverting.value = true
   convertError.value = ''
   try {
-    const blob = await jsonToZip(transferJson.value.trim())
+    const blob = await jsonToZip(combined)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -310,16 +395,6 @@ async function onConvertToZip() {
     convertError.value = err instanceof Error ? err.message : '转换失败'
   } finally {
     isConverting.value = false
-  }
-}
-
-async function onPasteJson() {
-  try {
-    const text = await navigator.clipboard.readText()
-    transferJson.value = text
-    convertError.value = ''
-  } catch {
-    convertError.value = '无法读取剪贴板,请手动粘贴'
   }
 }
 </script>
@@ -359,6 +434,12 @@ async function onPasteJson() {
             type="button"
             @click="activeTab = 'data'"
           >数据管理</button>
+          <button
+            class="sd__tab"
+            :class="{ 'sd__tab--active': activeTab === 'copyJson' }"
+            type="button"
+            @click="activeTab = 'copyJson'"
+          >复制JSON</button>
           <button
             class="sd__tab"
             :class="{ 'sd__tab--active': activeTab === 'transfer' }"
@@ -550,28 +631,68 @@ async function onPasteJson() {
             <DataManagerDialog :open="open" embedded />
           </div>
 
+          <!-- 复制JSON:完整复制 + 分割复制 -->
+          <div v-if="activeTab === 'copyJson'" class="sd__section">
+            <p class="sd__desc">
+              将当前所有对话数据导出为 JSON 文本,可粘贴到「数据转移」转换为 ZIP 文件。
+            </p>
+            <div class="sd__actions">
+              <button class="sd__btn sd__btn--primary" type="button" @click="onCopyFull">
+                {{ fullCopySuccess ? '已复制' : '复制数据' }}
+              </button>
+              <button class="sd__btn" type="button" @click="splitJson">分割数据</button>
+            </div>
+            <div v-if="jsonChunks.length > 0" class="sd__chunks">
+              <p class="sd__desc">数据已分为 {{ jsonChunks.length }} 部分,点击按钮复制对应部分:</p>
+              <div class="sd__chunk-btns">
+                <button
+                  v-for="(_, idx) in jsonChunks"
+                  :key="idx"
+                  class="sd__btn sd__btn--chunk"
+                  :class="{ 'sd__btn--copied': chunkCopied.includes(idx) }"
+                  type="button"
+                  @click="onCopyChunk(idx)"
+                >
+                  {{ chunkCopied.includes(idx) ? `第${idx + 1}部分 ✓` : `第${idx + 1}部分` }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- 数据转移:粘贴 JSON → 转换为标准 ZIP 下载 -->
           <div v-if="activeTab === 'transfer'" class="sd__section">
             <p class="sd__desc">
-              将「复制JSON」得到的文本粘贴到下方,转换为标准 .zip 工程文件下载,可直接导入使用。
+              将「复制JSON」得到的文本粘贴到下方(分割数据则分块粘贴),转换为标准 .zip 工程文件下载。
             </p>
             <div class="sd__transfer-actions">
               <button class="sd__btn" type="button" @click="onPasteJson">从剪贴板粘贴</button>
+              <button class="sd__btn" type="button" @click="addTransferPart">添加框</button>
               <button
                 class="sd__btn sd__btn--primary"
                 type="button"
-                :disabled="isConverting || !transferJson.trim()"
+                :disabled="isConverting"
                 @click="onConvertToZip"
               >
                 {{ convertSuccess ? '已下载' : isConverting ? '转换中…' : '转换并下载 ZIP' }}
               </button>
             </div>
-            <textarea
-              v-model="transferJson"
-              class="sd__textarea sd__textarea--tall"
-              rows="12"
-              placeholder="粘贴从「复制JSON」得到的文本…"
-            ></textarea>
+            <div v-for="(_, idx) in transferParts" :key="idx" class="sd__transfer-part">
+              <div class="sd__transfer-part-header">
+                <span class="sd__transfer-part-label">{{ transferParts.length > 1 ? `第${idx + 1}部分` : '数据' }}</span>
+                <button
+                  v-if="transferParts.length > 1"
+                  class="sd__btn sd__btn--small sd__btn--danger"
+                  type="button"
+                  @click="removeTransferPart(idx)"
+                >删除</button>
+              </div>
+              <textarea
+                v-model="transferParts[idx]"
+                class="sd__textarea sd__textarea--tall"
+                rows="8"
+                :placeholder="`粘贴第${idx + 1}部分数据…`"
+              ></textarea>
+            </div>
             <p v-if="convertError" class="sd__error">{{ convertError }}</p>
           </div>
 
@@ -938,6 +1059,54 @@ async function onPasteJson() {
     display: flex;
     gap: 8px;
     margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  &__transfer-part {
+    margin-bottom: 10px;
+  }
+
+  &__transfer-part-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  &__transfer-part-label {
+    font-family: $font-harmony;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  &__chunks {
+    margin-top: 12px;
+  }
+
+  &__chunk-btns {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  &__btn--chunk {
+    min-width: 80px;
+  }
+
+  &__btn--copied {
+    background: rgba(100, 255, 100, 0.15);
+    border-color: rgba(100, 255, 100, 0.4);
+    color: #a0ffa0;
+  }
+
+  &__btn--small {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  &__btn--danger {
+    background: #7a2e2e;
+    color: #f0eeee;
   }
 
   &__error {
