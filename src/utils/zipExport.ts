@@ -336,10 +336,47 @@ export async function downloadProject(
 }
 
 /**
- * 生成导出 ZIP 的 blob 直链,复制到剪贴板,同时触发下载。
- * blob 链接仅当前浏览器会话有效,换浏览器/关闭页面后失效。
+ * 将完整导出数据序列化为单个 JSON 字符串(图片保留 dataURL 内联)。
+ * 用于浏览器无法下载文件时,用户复制文本保存为 .json 文件抢救数据。
  */
-export async function copyExportLink(
+export function exportToJsonString(
+  cards: Card[],
+  myGender: 'male' | 'female',
+  stripVariantIndex: number,
+  promptOverrides: Record<string, string>,
+  worldSetting: string,
+  defaultWorldSetting: string,
+): string {
+  const exportableCards: Card[] = cards
+    .map((card) => ({
+      conversations: card.conversations.filter(
+        (conv) => conv.messages.length > 0 || (conv.contextHistory?.length ?? 0) > 0,
+      ),
+    }))
+    .filter((card) => card.conversations.length > 0)
+
+  if (exportableCards.length === 0) {
+    throw new Error('没有可导出的对话数据')
+  }
+
+  const hasCustomWorldSetting = worldSetting && worldSetting !== defaultWorldSetting
+
+  return JSON.stringify({
+    version: PROJECT_VERSION,
+    myGender,
+    stripVariantIndex,
+    exportedAt: new Date().toISOString(),
+    cards: sanitizeCards(exportableCards),
+    promptOverrides: Object.keys(promptOverrides).length > 0 ? promptOverrides : undefined,
+    worldSetting: hasCustomWorldSetting ? worldSetting : undefined,
+  })
+}
+
+/**
+ * 将导出 JSON 复制到剪贴板。
+ * 用户粘贴保存为 .json 文件后,可通过导入功能还原。
+ */
+export async function copyExportJson(
   cards: Card[],
   myGender: 'male' | 'female',
   stripVariantIndex: number,
@@ -347,21 +384,102 @@ export async function copyExportLink(
   worldSetting: string,
   defaultWorldSetting: string,
 ): Promise<void> {
-  const blob = await exportToZip(cards, myGender, stripVariantIndex, promptOverrides, worldSetting, defaultWorldSetting)
-  const url = URL.createObjectURL(blob)
+  const json = exportToJsonString(cards, myGender, stripVariantIndex, promptOverrides, worldSetting, defaultWorldSetting)
+  await navigator.clipboard.writeText(json)
+}
 
-  // 复制到剪贴板
-  await navigator.clipboard.writeText(url)
+// ---- JSON → ZIP 转换 --------------------------------------------------------
 
-  // 同时触发下载
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `BAKER-${timestamp()}${EXPORT_FILE_EXT}`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
+/**
+ * 将复制的 JSON 文本转换为标准 ZIP 工程文件。
+ * JSON 结构由 exportToJsonString 生成,图片以 dataURL 内联;
+ * 转换时将 dataURL 提取为独立二进制文件,生成与 exportToZip 完全一致的 ZIP 结构。
+ */
+export async function jsonToZip(jsonText: string): Promise<Blob> {
+  let raw: Record<string, unknown>
+  try {
+    raw = JSON.parse(jsonText)
+  } catch {
+    throw new Error('JSON 解析失败,请检查文本格式')
+  }
 
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  if (typeof raw.version !== 'number' || raw.version !== PROJECT_VERSION) {
+    throw new Error(`版本号不匹配:期望 ${PROJECT_VERSION}`)
+  }
+  if (!Array.isArray(raw.cards)) {
+    throw new Error('JSON 缺少 cards 数组')
+  }
+
+  const myGender: 'male' | 'female' = raw.myGender === 'female' ? 'female' : 'male'
+  const stripVariantIndex = typeof raw.stripVariantIndex === 'number'
+    ? ((raw.stripVariantIndex % 3) + 3) % 3
+    : 0
+  const promptOverrides: Record<string, string> =
+    raw.promptOverrides && typeof raw.promptOverrides === 'object'
+      ? raw.promptOverrides as Record<string, string>
+      : {}
+  const worldSetting: string =
+    typeof raw.worldSetting === 'string' ? raw.worldSetting : ''
+
+  const zip = new JSZip()
+
+  // 1. project.json
+  const projectMeta = {
+    version: PROJECT_VERSION,
+    myGender,
+    stripVariantIndex,
+    exportedAt: raw.exportedAt ?? new Date().toISOString(),
+    stats: countStats(raw.cards as Card[]),
+  }
+  zip.file('project.json', JSON.stringify(projectMeta, null, 2))
+
+  // 2. cards/ — 对话 JSON + 图片文件
+  ;(raw.cards as Card[]).forEach((card, cardIdx) => {
+    const cardDir = `cards/${String(cardIdx).padStart(2, '0')}`
+    const conversationsDir = `${cardDir}/conversations`
+    const imagesDir = `${cardDir}/images`
+
+    card.conversations.forEach((conv, convIdx) => {
+      const convIdxStr = String(convIdx).padStart(2, '0')
+      const namePart = sanitizeFileName(conv.name)
+
+      const convData: Conversation = JSON.parse(JSON.stringify(conv))
+
+      for (const msg of convData.messages) {
+        if (msg.image && msg.image.startsWith('data:')) {
+          const mime = msg.image.match(/^data:([^;]+);base64,/)?.[1]
+          if (!mime || !(mime in MIME_TO_EXT)) continue
+          try {
+            const { data, ext } = dataURLToBinary(msg.image)
+            const imgFileName = `${convIdxStr}-${msg.id}.${ext}`
+            zip.file(`${imagesDir}/${imgFileName}`, data)
+            msg.image = `${imagesDir}/${imgFileName}`
+          } catch {
+            // dataURL 解析失败,保留原始内联
+          }
+        }
+      }
+
+      const convFileName = `${convIdxStr}-${namePart}.json`
+      zip.file(`${conversationsDir}/${convFileName}`, JSON.stringify(convData, null, 2))
+    })
+  })
+
+  // 3. prompts/ — 自定义提示词
+  if (Object.keys(promptOverrides).length > 0) {
+    for (const [name, prompt] of Object.entries(promptOverrides)) {
+      if (prompt) {
+        const fileName = sanitizeFileName(name)
+        zip.file(`prompts/characters/${fileName}.txt`, prompt)
+      }
+    }
+  }
+
+  if (worldSetting) {
+    zip.file('prompts/world-setting.txt', worldSetting)
+  }
+
+  return zip.generateAsync({ type: 'blob' })
 }
 
 // ---- ZIP 导入 ---------------------------------------------------------------

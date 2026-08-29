@@ -13,6 +13,7 @@ import { testBackendConnection } from '../../utils/backend'
 import { useChatStore } from '../../stores/chat'
 import { CHARACTER_PROMPTS } from '../../constants/prompts'
 import DataManagerDialog from './DataManagerDialog.vue'
+import { jsonToZip, EXPORT_FILE_EXT } from '../../utils/zipExport'
 
 const props = defineProps<{
   /** 是否展开 */
@@ -30,8 +31,8 @@ const emit = defineEmits<{
 const settingsStore = useSettingsStore()
 const chatStore = useChatStore()
 
-/** 当前标签页:api / system / character / data / bg / disclaimer / about */
-const activeTab = ref<'api' | 'system' | 'character' | 'data' | 'bg' | 'disclaimer' | 'about'>('api')
+/** 当前标签页:api / system / character / data / transfer / bg / disclaimer / about */
+const activeTab = ref<'api' | 'system' | 'character' | 'data' | 'transfer' | 'bg' | 'disclaimer' | 'about'>('api')
 
 // ---- API 配置本地缓存(打开时同步,保存时写入 store) -------------------------
 const apiDraft = ref({
@@ -282,6 +283,45 @@ function onBgFileChange(event: Event) {
 function onBgReset() {
   props.onBgChange?.(null)
 }
+
+// ---- 数据转移:JSON → ZIP 转换 -----------------------------------------------
+const transferJson = ref('')
+const isConverting = ref(false)
+const convertSuccess = ref(false)
+const convertError = ref('')
+
+async function onConvertToZip() {
+  if (isConverting.value || !transferJson.value.trim()) return
+  isConverting.value = true
+  convertError.value = ''
+  try {
+    const blob = await jsonToZip(transferJson.value.trim())
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `BAKER-transfer${EXPORT_FILE_EXT}`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    convertSuccess.value = true
+    setTimeout(() => { convertSuccess.value = false }, 2000)
+  } catch (err) {
+    convertError.value = err instanceof Error ? err.message : '转换失败'
+  } finally {
+    isConverting.value = false
+  }
+}
+
+async function onPasteJson() {
+  try {
+    const text = await navigator.clipboard.readText()
+    transferJson.value = text
+    convertError.value = ''
+  } catch {
+    convertError.value = '无法读取剪贴板,请手动粘贴'
+  }
+}
 </script>
 
 <template>
@@ -319,6 +359,12 @@ function onBgReset() {
             type="button"
             @click="activeTab = 'data'"
           >数据管理</button>
+          <button
+            class="sd__tab"
+            :class="{ 'sd__tab--active': activeTab === 'transfer' }"
+            type="button"
+            @click="activeTab = 'transfer'"
+          >数据转移</button>
           <button
             class="sd__tab"
             :class="{ 'sd__tab--active': activeTab === 'bg' }"
@@ -502,6 +548,31 @@ function onBgReset() {
           <!-- 数据管理(内嵌 DataManagerDialog 功能:统计/导出/导入/清空) -->
           <div v-if="activeTab === 'data'" class="sd__section">
             <DataManagerDialog :open="open" embedded />
+          </div>
+
+          <!-- 数据转移:粘贴 JSON → 转换为标准 ZIP 下载 -->
+          <div v-if="activeTab === 'transfer'" class="sd__section">
+            <p class="sd__desc">
+              将「复制JSON」得到的文本粘贴到下方,转换为标准 .zip 工程文件下载,可直接导入使用。
+            </p>
+            <div class="sd__transfer-actions">
+              <button class="sd__btn" type="button" @click="onPasteJson">从剪贴板粘贴</button>
+              <button
+                class="sd__btn sd__btn--primary"
+                type="button"
+                :disabled="isConverting || !transferJson.trim()"
+                @click="onConvertToZip"
+              >
+                {{ convertSuccess ? '已下载' : isConverting ? '转换中…' : '转换并下载 ZIP' }}
+              </button>
+            </div>
+            <textarea
+              v-model="transferJson"
+              class="sd__textarea sd__textarea--tall"
+              rows="12"
+              placeholder="粘贴从「复制JSON」得到的文本…"
+            ></textarea>
+            <p v-if="convertError" class="sd__error">{{ convertError }}</p>
           </div>
 
           <!-- 背景:上传自定义背景 + 恢复默认 -->
@@ -861,6 +932,19 @@ function onBgReset() {
 
       &:hover { background: #e6d936; }
     }
+  }
+
+  &__transfer-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  &__error {
+    margin: 10px 0 0;
+    font-family: $font-harmony;
+    font-size: 14px;
+    color: #ff8f8f;
   }
 
   &__hint {

@@ -19,7 +19,7 @@ import { useSettingsStore, DEFAULT_WORLD_SETTING } from '../../stores/settings'
 import { MATERIALS } from '../../constants/materials'
 import {
   downloadProject,
-  copyExportLink,
+  copyExportJson,
   importFromZip,
   EXPORT_FILE_EXT,
   type ProjectPayload,
@@ -115,14 +115,14 @@ async function onExport() {
   }
 }
 
-/** 生成直链中状态 */
-const isLinking = ref(false)
+/** 复制JSON中状态 */
+const isCopying = ref(false)
 
-async function onLink() {
-  if (isLinking.value) return
-  isLinking.value = true
+async function onCopy() {
+  if (isCopying.value) return
+  isCopying.value = true
   try {
-    await copyExportLink(
+    await copyExportJson(
       cards.value,
       chatStore.myGender,
       chatStore.stripVariantIndex,
@@ -130,16 +130,16 @@ async function onLink() {
       settingsStore.worldSetting,
       DEFAULT_WORLD_SETTING,
     )
-    linkSuccess.value = true
-    setTimeout(() => { linkSuccess.value = false }, 2000)
+    copySuccess.value = true
+    setTimeout(() => { copySuccess.value = false }, 2000)
   } catch (err) {
-    importError.value = err instanceof Error ? err.message : '生成直链失败'
+    importError.value = err instanceof Error ? err.message : '复制失败'
   } finally {
-    isLinking.value = false
+    isCopying.value = false
   }
 }
 
-const linkSuccess = ref(false)
+const copySuccess = ref(false)
 
 function onRequestClear() {
   confirmKind.value = 'clear'
@@ -251,8 +251,8 @@ function onCancelConfirm() {
             <button class="dm__btn dm__btn--primary" type="button" :disabled="isExporting" @click="onExport">
               {{ isExporting ? '导出中…' : '导出数据' }}
             </button>
-            <button class="dm__btn" type="button" :disabled="isLinking" @click="onLink">
-              {{ linkSuccess ? '已复制' : isLinking ? '生成中…' : '生成直链' }}
+            <button class="dm__btn" type="button" :disabled="isCopying" @click="onCopy">
+              {{ copySuccess ? '已复制' : isCopying ? '复制中…' : '复制JSON' }}
             </button>
             <button class="dm__btn" type="button" @click="onPickFile">导入数据</button>
           </div>
